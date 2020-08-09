@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  serverless-fast-api
+
+  Boilerplate for Fastapi, Mangum, running on Lambda and API Gateway
+
+Parameters:
+  Stage:
+    Description: The environment to deploy service to
+    Type: String
+    AllowedValues:
+      - test
+      - prod
+    Default: test
+
+Globals:
+  Function:
+    Timeout: 20
+    Environment:
+      Variables:
+        ENV: !Ref Stage
+
+Resources:
+
+  ApiGatewayResource:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+
+  MangumFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub serverless-fast-api-${Stage}
+      CodeUri: example_app/
+      Handler: handler.lambda_handler
+      Tracing: Active
+      AutoPublishAlias: live
+      Runtime: python3.8
+      Events:
+        RootEndpoint:
+          Type: Api
+          Properties:
+            Path: /
+            Method: any
+            RestApiId: !Ref ApiGatewayResource
+        NestedEndpoint:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: any
+            RestApiId: !Ref ApiGatewayResource
+        ApiEndpoint:
+          Type: Api
+          Properties:
+            Path: /api/{proxy+}
+            Method: any
+            RestApiId: !Ref ApiGatewayResource
+            Auth:
+              ApiKeyRequired: true
+
+  ApiKeyResource:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn:
+      - ApiGatewayResourceStage
+    Properties:
+      Name: TestApiKey
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref ApiGatewayResource
+          StageName: !Ref Stage
+
+  UsagePlanResource:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: # https://github.com/awslabs/serverless-application-model/issues/1560#issuecomment-638944938
+      - ApiGatewayResourceStage
+    Properties:
+      ApiStages:
+        - ApiId: !Ref ApiGatewayResource
+          Stage: !Ref Stage
+      Description: Throttled usage plan
+      Throttle:
+        BurstLimit: 3
+        RateLimit: 5
+      UsagePlanName: Throttle_Plan
+
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKeyResource
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlanResource
