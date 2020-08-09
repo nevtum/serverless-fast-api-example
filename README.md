@@ -31,6 +31,7 @@ To build and deploy the SAM application, run the following commands:
 Install and run uvicorn to start a FastAPI app instance: 
 
 ```bash
+  $ pip install -r example_app/requirements.txt
   $ pip install -r requirements.dev.txt
   $ ENV=local uvicorn example_app.app:app --port 8080 --reload
 ```
